@@ -76,11 +76,17 @@ class XiaomiVacuumMapCard extends LitElement {
         if (!config.reference_point.y) {
             throw new Error("Missing configuration: reference_point.y");
         }
+	if (!config.map_style) {
+		config.map_style = '';
+	}
         this.config = config;
         const diffX = config.reference_point.x - config.base_position.x;
         const diffY = config.reference_point.y - config.base_position.y;
         this.shouldSwapAxis = diffX * diffY > 0;
         if (this.shouldSwapAxis) {
+	    if (this.config.debug) {
+                console.log('Axis swapping required');
+	    }
             this.unit = {
                 x: diffY,
                 y: diffX
@@ -104,15 +110,15 @@ class XiaomiVacuumMapCard extends LitElement {
         const rendered = html`
         ${style}
         <ha-card id="xiaomiCard">
-            <div id="mapWrapper">
+            <div id="mapWrapper" style="${this.config.map_style}">
                 <div id="map">
                     <img id="mapBackground" @load="${() => this.mapOnLoad()}" src="${this.config.map_image}">
-                    <canvas id="mapDrawing" 
-                        @mousemove="${e => this.onMouseMove(e)}" 
-                        @mousedown="${e => this.onMouseDown(e)}" 
+                    <canvas id="mapDrawing"
+                        @mousemove="${e => this.onMouseMove(e)}"
+                        @mousedown="${e => this.onMouseDown(e)}"
                         @mouseup="${e => this.onMouseUp(e)}"
-                        @touchstart="${e => this.onTouchStart(e)}" 
-                        @touchend="${e => this.onTouchEnd(e)}" 
+                        @touchstart="${e => this.onTouchStart(e)}"
+                        @touchend="${e => this.onTouchEnd(e)}"
                         @touchmove="${e => this.onTouchMove(e)}" />
                 </div>
             </div>
@@ -181,6 +187,8 @@ class XiaomiVacuumMapCard extends LitElement {
                 }
             }
         }
+	const mapPos = this.convertCanvasToRealCoordinates(pos.x, pos.y);
+	console.log('Image = ('+pos.x+', '+pos.y+') Zone = ('+mapPos.x+', '+mapPos.y+')');
         this.drawCanvas();
     }
 
@@ -280,6 +288,16 @@ class XiaomiVacuumMapCard extends LitElement {
         const context = canvas.getContext("2d");
         context.clearRect(0, 0, canvas.width, canvas.height);
         context.translate(0.5, 0.5);
+	if (this.config.debug) {
+		var w = 6;
+		context.beginPath();
+		context.arc(this.config.base_position.x, this.config.base_position.y, 4, 0, Math.PI * 2);
+		context.moveTo(this.config.reference_point.x + 4, this.config.reference_point.y);
+		context.arc(this.config.reference_point.x, this.config.reference_point.y, 4, 0, Math.PI * 2);
+		context.strokeStyle = 'red';
+		context.lineWidth = 1;
+		context.stroke();
+	}
         if (this.mode === 1 && this.currPoint.x != null) {
             context.beginPath();
             context.arc(this.currPoint.x, this.currPoint.y, 4, 0, Math.PI * 2);
@@ -366,13 +384,12 @@ class XiaomiVacuumMapCard extends LitElement {
         const mapPos = this.convertCanvasToRealCoordinates(this.currPoint.x, this.currPoint.y);
         if (debug && this.config.debug) {
             alert(JSON.stringify([mapPos.x, mapPos.y]));
-        } else {
-            this._hass.callService("vacuum", "send_command", {
-                entity_id: this.config.entity,
-                command: "app_goto_target",
-                params: [mapPos.x, mapPos.y]
-            });
         }
+        this._hass.callService("vacuum", "send_command", {
+            entity_id: this.config.entity,
+            command: "app_goto_target",
+            params: [mapPos.x, mapPos.y]
+        });
     }
 
     vacuumStartZonedCleanup(debug) {
